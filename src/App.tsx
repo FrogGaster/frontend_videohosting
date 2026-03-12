@@ -25,8 +25,21 @@ function useAuth() {
       .finally(() => setLoading(false));
   }, [token]);
 
-  const login = async (email: string, password: string) => {
+  const login = async (email: string, password: string): Promise<{ requires2fa: boolean; challengeId?: string; message?: string }> => {
     const data = await api.login({ email, password });
+    if (data.requires_2fa) {
+      return { requires2fa: true, challengeId: data.challenge_id, message: data.message };
+    }
+    if (!data.access_token) {
+      throw new Error("Token is missing");
+    }
+    localStorage.setItem("token", data.access_token);
+    setToken(data.access_token);
+    return { requires2fa: false };
+  };
+
+  const verifyOtp = async (challengeId: string, code: string) => {
+    const data = await api.verifyOtp({ challenge_id: challengeId, code });
     localStorage.setItem("token", data.access_token);
     setToken(data.access_token);
   };
@@ -39,7 +52,7 @@ function useAuth() {
     setUser(null);
   };
 
-  return { token, user, loading, login, register, logout, setUser };
+  return { token, user, loading, login, verifyOtp, register, logout, setUser };
 }
 
 function Layout({
@@ -286,10 +299,19 @@ function HomePage({
   );
 }
 
-function LoginPage({ onLogin }: { onLogin: (email: string, password: string) => Promise<void> }) {
+function LoginPage({
+  onLogin,
+  onVerifyOtp
+}: {
+  onLogin: (email: string, password: string) => Promise<{ requires2fa: boolean; challengeId?: string; message?: string }>;
+  onVerifyOtp: (challengeId: string, code: string) => Promise<void>;
+}) {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [otpCode, setOtpCode] = useState("");
+  const [challengeId, setChallengeId] = useState<string | null>(null);
+  const [otpMessage, setOtpMessage] = useState("");
   const [error, setError] = useState("");
 
   return (
@@ -299,7 +321,17 @@ function LoginPage({ onLogin }: { onLogin: (email: string, password: string) => 
         e.preventDefault();
         setError("");
         try {
-          await onLogin(email, password);
+          if (challengeId) {
+            await onVerifyOtp(challengeId, otpCode.trim());
+            navigate("/");
+            return;
+          }
+          const result = await onLogin(email, password);
+          if (result.requires2fa && result.challengeId) {
+            setChallengeId(result.challengeId);
+            setOtpMessage(result.message || "Код подтверждения отправлен на email");
+            return;
+          }
           navigate("/");
         } catch (err) {
           setError((err as Error).message);
@@ -307,22 +339,37 @@ function LoginPage({ onLogin }: { onLogin: (email: string, password: string) => 
       }}
     >
       <h2>Вход</h2>
-      <input
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        placeholder="Email или admin"
-        type="text"
-        required
-      />
-      <input
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        placeholder="Пароль"
-        type="password"
-        required
-      />
+      {!challengeId ? (
+        <>
+          <input
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="Email или admin"
+            type="text"
+            required
+          />
+          <input
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Пароль"
+            type="password"
+            required
+          />
+        </>
+      ) : (
+        <>
+          <p>{otpMessage}</p>
+          <input
+            value={otpCode}
+            onChange={(e) => setOtpCode(e.target.value)}
+            placeholder="Код из письма"
+            type="text"
+            required
+          />
+        </>
+      )}
       {error && <p className="error">{error}</p>}
-      <button>Войти</button>
+      <button>{challengeId ? "Подтвердить код" : "Войти"}</button>
     </form>
   );
 }
@@ -1321,7 +1368,7 @@ export function App() {
         />
         <Route path="/videos/:id" element={<VideoPage token={auth.token} />} />
         <Route path="/channels/:id" element={<ChannelPage token={auth.token} />} />
-        <Route path="/login" element={<LoginPage onLogin={auth.login} />} />
+        <Route path="/login" element={<LoginPage onLogin={auth.login} onVerifyOtp={auth.verifyOtp} />} />
         <Route path="/register" element={<RegisterPage onRegister={auth.register} />} />
         <Route
           path="/profile"

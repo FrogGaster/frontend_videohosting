@@ -1,6 +1,6 @@
 import type { Channel, Comment, ContinueWatchingItem, User, Video, VideoAnalytics, VideoListResponse } from "./types";
 
-const API_BASE = import.meta.env.VITE_API_BASE || "http://127.0.0.1:8000";
+const API_BASE = (import.meta.env.VITE_API_BASE || "http://127.0.0.1:8000").replace(/\/+$/, "");
 const ANALYTICS_BATCH_FLUSH_MS = 1200;
 const ANALYTICS_BATCH_MAX = 30;
 
@@ -88,7 +88,13 @@ export const api = {
       body: JSON.stringify(payload)
     }),
   login: (payload: { email: string; password: string }) =>
-    request<{ access_token: string; token_type: string }>("/auth/login", {
+    request<{ requires_2fa: boolean; access_token?: string; token_type?: string; challenge_id?: string; message?: string }>("/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    }),
+  verifyOtp: (payload: { challenge_id: string; code: string }) =>
+    request<{ access_token: string; token_type: string }>("/auth/verify-otp", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
