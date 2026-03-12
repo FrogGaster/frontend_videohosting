@@ -1096,7 +1096,7 @@ function ChannelPage({ token }: { token: string | null }) {
 }
 
 function UploadPage({ token, user }: { token: string | null; user: User | null }) {
-  const MAX_VIDEO_BYTES = 1024 * 1024 * 1024;
+  const MAX_VIDEO_BYTES = 3 * 1024 * 1024 * 1024;
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [genre, setGenre] = useState("hoi4_letsplay");
@@ -1136,7 +1136,7 @@ function UploadPage({ token, user }: { token: string | null; user: User | null }
           return;
         }
         if (videoFile.size > MAX_VIDEO_BYTES) {
-          setError("Видео слишком большое. Максимум 1 ГБ.");
+          setError("Видео слишком большое. Максимум 3 ГБ.");
           return;
         }
         setUploading(true);
@@ -1184,7 +1184,7 @@ function UploadPage({ token, user }: { token: string | null; user: User | null }
       }}
     >
       <h2>Загрузка видео</h2>
-      <p>Максимальный размер видео: 1 ГБ. Публикация после апрува админа.</p>
+      <p>Максимальный размер видео: 3 ГБ. Публикация после апрува админа.</p>
       <input placeholder="Название" value={title} onChange={(e) => setTitle(e.target.value)} required />
       <textarea
         placeholder="Описание"
